@@ -1,0 +1,22 @@
+﻿Method,Number of Features,CV RMSE,CV R-squared,Selected Features
+Forward Selection,1,9745.400782319537,0.9199423723200347,['num__R&D Spend']
+Forward Selection,2,10142.907856461052,0.9161402488347352,"['num__R&D Spend', 'num__Administration']"
+Forward Selection,3,9976.802600657995,0.9143158399233636,"['num__R&D Spend', 'num__Administration', 'cat__State_New York']"
+Forward Selection,4,9857.506198516534,0.9171140317222524,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_New York']"
+Forward Selection,5,10158.660838241913,0.9107730543925692,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_Florida', 'cat__State_New York']"
+Backward Elimination,1,9745.400782319537,0.9199423723200347,['num__R&D Spend']
+Backward Elimination,2,10142.907856461052,0.9161402488347352,"['num__R&D Spend', 'num__Administration']"
+Backward Elimination,3,9976.802600657995,0.9143158399233636,"['num__R&D Spend', 'num__Administration', 'cat__State_New York']"
+Backward Elimination,4,9857.506198516534,0.9171140317222524,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_New York']"
+Backward Elimination,5,10158.660838241913,0.9107730543925692,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_Florida', 'cat__State_New York']"
+RFE,1,9745.400782319537,0.9199423723200347,['num__R&D Spend']
+RFE,2,9482.344018607644,0.9247245409149608,"['num__R&D Spend', 'num__Marketing Spend']"
+RFE,3,9952.454313857717,0.914768042333051,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend']"
+RFE,4,10100.96161284437,0.9115109562770296,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_Florida']"
+RFE,5,10158.660838241913,0.9107730543925692,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_Florida', 'cat__State_New York']"
+SelectKBest,1,9745.400782319537,0.9199423723200347,['num__R&D Spend']
+SelectKBest,2,9482.344018607644,0.9247245409149608,"['num__R&D Spend', 'num__Marketing Spend']"
+SelectKBest,3,9669.397690131565,0.9210418918064953,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend']"
+SelectKBest,4,9976.922703858185,0.9143924558810129,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_New York']"
+SelectKBest,5,10158.660838241913,0.9107730543925692,"['num__R&D Spend', 'num__Administration', 'num__Marketing Spend', 'cat__State_Florida', 'cat__State_New York']"
+Lasso,2,9590.70030764057,0.9241566554171146,"['num__R&D Spend', 'num__Marketing Spend']"
