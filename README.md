@@ -2,11 +2,43 @@
 
 ## Dataset Workbench
 
-`dist/index.html` 提供資料集下拉選單，可載入內建的 **50 Startups** 或 **Boston Housing**，也能選取本機 CSV/TSV，或貼上可直接讀取的 CSV 網址。所有資料集共用 CRISP-DM 六階段、資料摘要、目標欄位選擇、80/20 測試集、5 折交叉驗證、RMSE/R²、實際與預測圖、殘差分布及數值相關性圖。來源下拉選單可切換內建資料，或展開本機 CSV 選擇與 CSV 網址輸入；載入後選單顯示目前資料集名稱。類別欄位轉為指示變數，數值缺失以訓練資料中位數補值。自訂檔案和網址資料只在目前瀏覽器處理，不會上傳；自訂評估是 OLS 基準，沒有執行五種特徵選擇方法。網址載入需要直接 CSV 連結且來源允許跨站讀取；Kaggle 頁面連結請先下載檔案再選取。
+`dist/index.html` 提供資料集下拉選單，可載入內建的 **50 Startups** 或 **Boston Housing**，也能選取本機 CSV/TSV，或貼上可直接讀取的 CSV 網址。所有資料集共用 CRISP-DM 六階段、資料摘要、目標欄位選擇、五種特徵選擇方法切換與比較、80/20 測試集、5 折交叉驗證、RMSE/R²、實際與預測圖、殘差分布及數值相關性圖。來源下拉選單可切換內建資料，或展開本機 CSV 選擇與 CSV 網址輸入；載入後選單顯示目前資料集名稱。類別欄位轉為指示變數，數值缺失以訓練資料中位數補值。本機檔案和網址資料只在目前瀏覽器處理，不會上傳到本專案的伺服器。網址載入需要直接 CSV 連結且來源允許跨站讀取；Kaggle 頁面連結請先下載檔案再選取。
 
 Boston Housing 的完整 CRISP-DM 分析程式、資料、結果與圖表在 `boston-housing/`。
 
-以使用者提供的 CRISP-DM + 五種特徵選擇程式為基礎，製作繁體中文互動報告。所有模型分數、曲線、係數、預測與比較表由 Python 實際計算，沒有沿用參考網站的預填數字。
+以使用者提供的 CRISP-DM + 五種特徵選擇程式為基礎，製作繁體中文互動報告。內建資料的 Python 分析結果保存在 `results/` 與 `boston-housing/results/`；網站上的資料切換、特徵選擇、分數與圖表則由瀏覽器依目前資料集重新計算。兩者使用不同切分與實作，數值不一定相同；詳見 [workflow.md](workflow.md)。
+
+## 網站畫面
+
+以下七張截圖依實際操作順序展示首頁、選資料、探索資料與模型評估。圖中的分數是截圖當時所選資料與設定的結果。
+
+**1. 首頁與資料探索入口**
+
+![Startup Lab 首頁與資料探索入口](docs/screenshots/01-home.png)
+
+**2. 資料集選擇與基本摘要**
+
+![50 Startups 資料集選擇、資料列與欄位摘要](docs/screenshots/02-dataset-selector.png)
+
+**3. 可切換欄位的散點圖與資料預覽**
+
+![數值欄位散點圖與 CSV 資料預覽](docs/screenshots/03-scatter-preview.png)
+
+**4. CRISP-DM 研究流程與預測目標設定**
+
+![CRISP-DM 六階段與目標欄位選擇](docs/screenshots/04-crisp-dm.png)
+
+**5. 五種特徵選擇方法與評估指標**
+
+![特徵選擇方法、特徵數與模型評估指標](docs/screenshots/05-model-selection.png)
+
+**6. 交叉驗證、預測與殘差圖表**
+
+![交叉驗證曲線、實際與預測值及殘差分布](docs/screenshots/06-evaluation-charts.png)
+
+**7. 數值欄位相關性表**
+
+![數值欄位相關性熱度表](docs/screenshots/07-correlation.png)
 
 ## 立即瀏覽
 
@@ -49,6 +81,8 @@ macOS / Linux 使用 `.venv/bin/python` 取代 `.\.venv\Scripts\python.exe`。�
 | `results/figure_2.png` | 最佳模型實際 vs 預測散點圖 |
 | `dist/` | 可部署於 GitHub Pages 等静態主機的完整網站 |
 | `REPORT.md` | 文字研究報告 |
+| `workflow.md` | 資料、訓練、網站互動與驗證流程 |
+| `docs/screenshots/` | README 使用的七張網站畫面 |
 
 ## 方法與重現邊界
 
@@ -64,6 +98,7 @@ macOS / Linux 使用 `.venv/bin/python` 取代 `.\.venv\Scripts\python.exe`。�
 - Windows 使用 `n_jobs=1` 避免程序重啟問題。這只調整平行度，不改演算法設定。
 - 繪圖改為存檔，資料改讀本機快照，新增結構化匯出。未更換原演算法、切分或特徵數搜尋。
 - 數值結果可能因套件 / BLAS 版本產生微小差異。重現版本已固定在 requirements.txt；實際版本記錄於 JSON。
+- 上述切分、方法與主要結果描述的是 `train.py` 的 Python 實驗。網站互動評估在瀏覽器內另行計算，使用固定種子 42，並以 L1 權重排序實作網站上的 Lasso 選項；其數字不可直接視為 Python `LassoCV` 的輸出。
 - pickle 僅用於載入本專案自行產生的模型；請勿載入不可信來源的 pickle。
 
 ## 主要結果
