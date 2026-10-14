@@ -126,6 +126,93 @@
     }
   }
 
+  function regressionFit(trainRows, testRows, featureDefs, target) {
+    const usable = featureDefs.filter(f => {
+      const vals = trainRows.map(r => r[f.key]).filter(isNumber);
+      if (!vals.length) return false;
+      let min=Infinity,max=-Infinity;for(const v of vals){if(v<min)min=v;if(v>max)max=v;}
+      return max-min>1e-12;
+    }).slice(0, Math.max(1,Math.min(40,trainRows.length-2)));
+    const medians = usable.map(f => {
+      const vals = trainRows.map(r => r[f.key]).filter(isNumber).sort((a,b)=>a-b);
+      return vals.length % 2 ? vals[(vals.length-1)/2] : (vals[vals.length/2-1]+vals[vals.length/2])/2;
+    });
+    const means = usable.map((f,j) => trainRows.reduce((a,r)=>a+(isNumber(r[f.key])?r[f.key]:medians[j]),0)/trainRows.length);
+    const scales = usable.map((f,j) => Math.sqrt(trainRows.reduce((a,r)=>a+((isNumber(r[f.key])?r[f.key]:medians[j])-means[j])**2,0)/trainRows.length) || 1);
+    const vector = row => usable.map((f,j)=>((isNumber(row[f.key])?row[f.key]:medians[j])-means[j])/scales[j]);
+    const p=usable.length, size=p+1, a=Array.from({length:size},()=>Array(size).fill(0)), b=Array(size).fill(0);
+    for (const row of trainRows) {
+      const x=[1,...vector(row)], y=row[target];
+      for(let i=0;i<size;i++){b[i]+=x[i]*y;for(let j=0;j<size;j++)a[i][j]+=x[i]*x[j];}
+    }
+    for(let i=1;i<size;i++)a[i][i]+=1e-8;
+    for(let i=0;i<size;i++){
+      let pivot=i;for(let j=i+1;j<size;j++)if(Math.abs(a[j][i])>Math.abs(a[pivot][i]))pivot=j;
+      if(Math.abs(a[pivot][i])<1e-12)continue;
+      [a[i],a[pivot]]=[a[pivot],a[i]];[b[i],b[pivot]]=[b[pivot],b[i]];
+      const div=a[i][i];for(let j=i;j<size;j++)a[i][j]/=div;b[i]/=div;
+      for(let k=0;k<size;k++)if(k!==i){const factor=a[k][i];for(let j=i;j<size;j++)a[k][j]-=factor*a[i][j];b[k]-=factor*b[i];}
+    }
+    const predictions=testRows.map(row=>({actual:row[target],predicted:b[0]+vector(row).reduce((s,v,i)=>s+v*b[i+1],0)}));
+    const mean=testRows.reduce((s,r)=>s+r[target],0)/testRows.length;
+    const sse=predictions.reduce((s,r)=>s+(r.actual-r.predicted)**2,0),sst=predictions.reduce((s,r)=>s+(r.actual-mean)**2,0);
+    return {predictions,rmse:Math.sqrt(sse/predictions.length),r2:sst?1-sse/sst:NaN,features:usable.length,terms:usable.map(f=>f.name)};
+  }
+  function customEvaluation(target) {
+    const rows=active.rows.filter(r=>isNumber(r[target])).map(r=>({...r}));
+    if(rows.length<15)throw new Error('至少需要 15 筆目標欄位為數值的資料，才能進行訓練與交叉驗證。');
+    const defs=[];
+    for(const column of Object.keys(rows[0])){
+      if(column===target)continue;
+      const values=rows.map(r=>r[column]), nums=values.filter(isNumber), present=values.filter(v=>v!==''&&v!==null&&v!==undefined);
+      if(nums.length>=Math.max(3,Math.ceil(rows.length*.7))){defs.push({name:column,key:column});continue;}
+      const cats=[...new Set(present.map(String))].sort((a,b)=>a.localeCompare(b));
+      if(cats.length>=2&&cats.length<=12){for(const cat of cats.slice(1)){const key=`__cat_${defs.length}`;rows.forEach((r,i)=>{r[key]=String(values[i])===cat?1:0;});defs.push({name:`${column} = ${cat}`,key});}}
+    }
+    if(!defs.length)throw new Error('找不到可用的數值或低類別數量特徵。');
+    const shuffled=[...rows].sort(()=>0);let seed=42;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+    for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
+    const testCount=Math.max(1,Math.ceil(shuffled.length*.2)),testRows=shuffled.slice(0,testCount),trainRows=shuffled.slice(testCount);
+    const test=regressionFit(trainRows,testRows,defs,target);
+    const folds=Math.min(5,trainRows.length),foldRows=Array.from({length:folds},()=>[]);
+    trainRows.forEach((row,i)=>foldRows[i%folds].push(row));
+    const scores=[];
+    for(let i=0;i<folds;i++){
+      const valid=foldRows[i],fit=trainRows.filter(r=>!valid.includes(r));
+      scores.push(regressionFit(fit,valid,defs,target));
+    }
+    return {rows:rows.length,testRows:test.predictions,rmse:test.rmse,r2:test.r2,cvRmse:scores.reduce((s,x)=>s+x.rmse,0)/folds,cvR2:scores.reduce((s,x)=>s+x.r2,0)/folds,features:test.features,terms:test.terms,target,folds};
+  }
+  function renderCustomCharts(predictions) {
+    const W=620,H=340,L=58,R=18,T=20,B=48;
+    const step=Math.max(1,Math.ceil(predictions.length/1000)),points=predictions.filter((_,i)=>i%step===0),actual=points.map(p=>p.actual),pred=points.map(p=>p.predicted),all=[...actual,...pred];
+    let min=Math.min(...all),max=Math.max(...all);const pad=(max-min)*.08||1;min-=pad;max+=pad;
+    const x=v=>L+(v-min)/(max-min)*(W-L-R),y=v=>H-B-(v-min)/(max-min)*(H-T-B);
+    let s='';for(let i=0;i<5;i++){const v=min+(max-min)*i/4;s+=`<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" stroke="#dce4d4" stroke-dasharray="3 5"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end" fill="#647763" font-size="10">${v.toFixed(1)}</text><text x="${x(v)}" y="${H-B+18}" text-anchor="middle" fill="#647763" font-size="10">${v.toFixed(1)}</text>`;}
+    s+=`<line x1="${x(min)}" y1="${y(min)}" x2="${x(max)}" y2="${y(max)}" stroke="#8a9c7a" stroke-dasharray="6 5"/>`;
+    points.forEach(p=>s+=`<circle cx="${x(p.actual)}" cy="${y(p.predicted)}" r="3.8" fill="#4f7e5d" opacity=".72"><title>實際 ${p.actual}；預測 ${p.predicted.toFixed(3)}</title></circle>`);
+    $('custom-actual-chart').innerHTML=`<svg class="custom-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="測試集實際與預測值散點圖">${s}<text x="${(L+W-R)/2}" y="${H-8}" text-anchor="middle" fill="#465b49" font-size="11">實際值</text><text x="15" y="${(T+H-B)/2}" transform="rotate(-90 15 ${(T+H-B)/2})" text-anchor="middle" fill="#465b49" font-size="11">預測值</text></svg>`;
+    const residuals=predictions.map(p=>p.actual-p.predicted),lo=Math.min(...residuals),hi=Math.max(...residuals),bins=8,span=hi-lo||1,counts=Array(bins).fill(0);
+    residuals.forEach(r=>counts[Math.min(bins-1,Math.floor((r-lo)/span*bins))]++);
+    const bw=(W-L-R)/bins,bmax=Math.max(...counts,1);let h=`<line x1="${L}" y1="${H-B}" x2="${W-R}" y2="${H-B}" stroke="#9aa998"/>`;
+    counts.forEach((n,i)=>{const bh=n/bmax*(H-T-B);h+=`<rect x="${L+i*bw+2}" y="${H-B-bh}" width="${Math.max(1,bw-4)}" height="${bh}" rx="2" fill="#8ca982"><title>${n} 筆殘差</title></rect><text x="${L+i*bw+bw/2}" y="${H-B+17}" text-anchor="middle" fill="#647763" font-size="9">${(lo+(i+.5)*span/bins).toFixed(1)}</text>`;});
+    $('custom-residual-chart').innerHTML=`<svg class="custom-svg" viewBox="0 ${0} ${W} ${H}" role="img" aria-label="測試集預測殘差分布">${h}<text x="${(L+W-R)/2}" y="${H-7}" text-anchor="middle" fill="#465b49" font-size="11">殘差（實際 − 預測）</text></svg>`;
+  }
+  function runCustomEvaluation() {
+    const target=$('custom-target')?.value;
+    if(!target){$('custom-evaluation').hidden=true;$('custom-eval-error').textContent='資料中找不到數值目標欄位，無法進行多元線性迴歸。';return;}
+    const host=$('custom-evaluation');host.hidden=false;
+    try{
+      const r=customEvaluation(target);
+      $('custom-eval-error').textContent='';
+      const metric=value=>Number.isFinite(value)?value.toFixed(4):'無法計算';
+      $('custom-eval-metrics').innerHTML=`<div><span>CV RMSE <small>越低越好</small></span><strong>${metric(r.cvRmse)}</strong><p>${r.folds} 折交叉驗證</p></div><div><span>CV R² <small>越高越好</small></span><strong>${metric(r.cvR2)}</strong><p>訓練資料內交叉驗證</p></div><div><span>Test RMSE</span><strong>${metric(r.rmse)}</strong><p>保留測試資料</p></div><div><span>Test R²</span><strong>${metric(r.r2)}</strong><p>保留測試資料</p></div>`;
+      $('custom-eval-meta').textContent=`目標：${target} · ${r.rows.toLocaleString()} 筆有效資料 · ${r.features} 個特徵 · 測試集 ${r.testRows.length} 筆。交叉驗證與測試集採固定亂數切分。`;
+    $('custom-model-terms').innerHTML=`<p>本次模型使用：${r.terms.map(escapeHtml).join('、')||'無'}。類別欄位以參考類別方式轉成指示變數；數值缺失以訓練資料中位數補值。</p>`;
+      renderCustomCharts(r.testRows);
+    }catch(error){host.hidden=true;$('custom-eval-error').textContent=`無法執行評估：${error.message}`;}
+  }
+
   function renderDatasetReport() {
     const report = $('dataset-report');
     const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict'].map($).filter(Boolean);
@@ -138,7 +225,10 @@
       report.innerHTML = `<div class="section-head"><div><div class="eyebrow">01–04 / BOSTON HOUSING REPORT</div><h2>Boston Housing 的 CRISP-DM 研究結果。</h2></div><p>此區會隨資料集切換；不沿用 50 Startups 的研究敘述或模型指標。</p></div><div class="process"><article><b>01</b><h3>商業理解</h3><p>以 MEDV（自有住宅價格中位數，千美元）為目標，探索住宅、區位與社經條件的關聯。</p></article><article><b>02</b><h3>資料理解</h3><p>506 筆、14 欄數值資料；包含 CRIM、RM、LSTAT 與 MEDV，無缺失值。</p></article><article><b>03</b><h3>資料準備</h3><p>固定 80/20 切分，訓練資料內標準化；所有欄位均為數值特徵。</p></article><article><b>04</b><h3>模型建立</h3><p>比較 Forward、Backward、RFE、SelectKBest 與 Lasso 五種特徵選擇方法。</p></article><article><b>05</b><h3>模型評估</h3><p>以 5-fold CV 選模，再使用保留測試集衡量 RMSE 與 R²。</p></article><article><b>06</b><h3>部署應用</h3><p>保留可重跑的 Python 程式、模型、比較表與圖表，供後續檢視與重現。</p></article></div><div class="metric-grid dataset-metrics"><div><span>最佳方法</span><strong>RFE</strong><p>依交叉驗證結果選定</p></div><div><span>Test RMSE</span><strong>5.7814</strong><p>MEDV 的原始單位</p></div><div><span>Test R²</span><strong>0.5895</strong><p>保留測試資料</p></div><div><span>資料規模</span><strong>506 × 14</strong><p>樣本數 × 欄位數</p></div></div><div class="chart-pair boston-figures"><article class="panel"><div class="chart-title"><h3>特徵相關性</h3><span>14 個數值欄位</span></div><div id="boston-heatmap" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>交叉驗證 RMSE</h3><span>依特徵數比較四種方法</span></div><div id="boston-cv-rmse" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>交叉驗證 R²</h3><span>依特徵數比較四種方法</span></div><div id="boston-cv-r2" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>最終模型比較</h3><span>Test RMSE（千美元）</span></div><div id="boston-models" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>實際值與預測值</h3><span>RFE 保留測試集</span></div><div id="boston-predictions" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>RFE 特徵係數</h3><span>11 個保留特徵</span></div><div id="boston-coefficients" class="boston-chart-host"></div></article></div><div class="panel dataset-report-note"><h3>完整 Boston Housing 分析</h3><p>完整的特徵選擇比較、係數、預測與圖表已收錄於專案的 <code>boston-housing/</code> 資料夾。</p></div>`;
       renderBostonCharts();
     } else {
-      report.innerHTML = `<div class="section-head"><div><div class="eyebrow">CUSTOM DATASET</div><h2>${escapeHtml(active.name)} 的資料檢視。</h2></div><p>此檔案只在瀏覽器本機讀取，尚未執行預先訓練的回歸模型。</p></div><div class="panel dataset-report-note"><h3>下一步</h3><p>可使用上方欄位選單探索數值關係與資料預覽。若要建立 CRISP-DM 模型，需要另外指定目標欄位、資料切分與驗證流程。</p></div>`;
+      const targets=numericColumns(active);
+      report.innerHTML = `<div class="section-head"><div><div class="eyebrow">CUSTOM DATASET / CRISP-DM</div><h2>${escapeHtml(active.name)} 的迴歸評估。</h2></div><p>以下結果由目前載入的資料即時計算，不會套用內建資料集的分數。</p></div><div class="process"><article><b>01</b><h3>商業理解</h3><p>選擇一個數值欄位作為預測目標，其他可用欄位作為解釋變數。</p></article><article><b>02</b><h3>資料理解</h3><p>檢視有效樣本、欄位類型、缺失值與數值關係。</p></article><article><b>03</b><h3>資料準備</h3><p>使用 80/20 保留測試集；類別欄位自動轉為指示變數，數值缺失以訓練資料中位數補值。</p></article><article><b>04</b><h3>模型建立</h3><p>以普通最小平方法建立多元線性迴歸模型。</p></article><article><b>05</b><h3>模型評估</h3><p>比較訓練資料內 5 折 CV 與保留測試集的 RMSE、R²，並檢視預測與殘差。</p></article><article><b>06</b><h3>部署應用</h3><p>自訂資料僅在這個瀏覽器分頁中運算，不會上傳或保存到網站。</p></article></div><div class="dataset-controls panel custom-target-controls"><label for="custom-target"><span class="label">預測目標欄位</span><select id="custom-target">${targets.map(c=>`<option value="${escapeHtml(c)}"${c===active.target?' selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label><button id="run-custom-evaluation" class="primary" type="button">執行迴歸評估 ↗</button><p id="custom-eval-error" role="status" aria-live="polite"></p></div><section id="custom-evaluation" class="custom-evaluation" hidden><div class="section-head"><div><div class="eyebrow">MODEL EVALUATION</div><h2>模型表現與預測診斷</h2></div><p id="custom-eval-meta"></p></div><div class="metric-grid dataset-metrics" id="custom-eval-metrics"></div><div class="chart-pair custom-chart-pair"><article class="panel"><div class="chart-title"><h3>實際值與預測值</h3><span>保留測試集</span></div><div id="custom-actual-chart" class="custom-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>測試集殘差分布</h3><span>實際 − 預測</span></div><div id="custom-residual-chart" class="custom-chart-host"></div></article></div><div class="panel dataset-report-note" id="custom-model-terms"></div><p class="note">這是線性迴歸基準評估，未執行 Forward、Backward、RFE、SelectKBest 或 Lasso 特徵選擇；少量樣本或高共線性可能使指標與係數不穩定。</p></section>`;
+      $('run-custom-evaluation').addEventListener('click',runCustomEvaluation);
+      runCustomEvaluation();
     }
   }
 
