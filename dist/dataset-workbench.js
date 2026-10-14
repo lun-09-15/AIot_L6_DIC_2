@@ -235,7 +235,7 @@
 
   function renderDatasetReport() {
     const report = $('dataset-report');
-    const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict', 'reproduce'].map($).filter(Boolean);
+    const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict', 'reproduce', 'methodology'].map($).filter(Boolean);
     report.hidden = false;
     startupSections.forEach(section => { section.hidden = true; });
     $('site-footer').hidden = false;
