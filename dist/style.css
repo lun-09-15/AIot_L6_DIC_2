@@ -10,3 +10,5 @@
 @media(max-width:760px){.dataset-lab{padding:5rem 5vw 1rem}.dataset-controls{display:grid;align-items:stretch}.dataset-controls .primary{width:100%}.dataset-overview{grid-template-columns:1fr}.dataset-stats{grid-template-columns:repeat(3,1fr)}.dataset-stats div{padding:.75rem}.dataset-stats strong{font-size:1.1rem}.axis-controls{display:grid;grid-template-columns:1fr;gap:.7rem}}
 
 .boston-figures img{display:block;width:100%;height:280px;max-width:100%;object-fit:contain;margin:8px auto 0}@media(max-width:680px){.boston-figures img{height:220px}}
+
+.boston-chart-host{width:100%;min-width:0;overflow:hidden}.boston-svg{display:block;width:100%;max-width:100%;height:auto;font-family:Inter,"Segoe UI","Microsoft JhengHei",sans-serif}.boston-figures article{min-width:0;overflow:hidden}
