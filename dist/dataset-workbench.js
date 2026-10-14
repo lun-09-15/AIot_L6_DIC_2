@@ -68,10 +68,11 @@
   }
   function renderDatasetReport() {
     const report = $('dataset-report');
-    const startupSections = ['research', 'explore', 'evaluation', 'predict'].map($);
+    const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict'].map($);
     const isStartup = active.id === 'startups';
     report.hidden = isStartup;
     startupSections.forEach(section => { section.hidden = !isStartup; });
+    $('site-footer').hidden = !isStartup;
     if (isStartup) return;
     if (active.id === 'boston') {
       report.innerHTML = `<div class="section-head"><div><div class="eyebrow">01–04 / BOSTON HOUSING REPORT</div><h2>Boston Housing 的 CRISP-DM 研究結果。</h2></div><p>此區會隨資料集切換；不沿用 50 Startups 的研究敘述或模型指標。</p></div><div class="process"><article><b>01</b><h3>商業理解</h3><p>以 MEDV（自有住宅價格中位數，千美元）為目標，探索住宅、區位與社經條件的關聯。</p></article><article><b>02</b><h3>資料理解</h3><p>506 筆、14 欄數值資料；包含 CRIM、RM、LSTAT 與 MEDV，無缺失值。</p></article><article><b>03</b><h3>資料準備</h3><p>固定 80/20 切分，訓練資料內標準化；所有欄位均為數值特徵。</p></article><article><b>04</b><h3>模型建立</h3><p>比較 Forward、Backward、RFE、SelectKBest 與 Lasso 五種特徵選擇方法。</p></article><article><b>05</b><h3>模型評估</h3><p>以 5-fold CV 選模，再使用保留測試集衡量 RMSE 與 R²。</p></article><article><b>06</b><h3>部署應用</h3><p>保留可重跑的 Python 程式、模型、比較表與圖表，供後續檢視與重現。</p></article></div><div class="metric-grid dataset-metrics"><div><span>最佳方法</span><strong>RFE</strong><p>依交叉驗證結果選定</p></div><div><span>Test RMSE</span><strong>5.7814</strong><p>MEDV 的原始單位</p></div><div><span>Test R²</span><strong>0.5895</strong><p>保留測試資料</p></div><div><span>資料規模</span><strong>506 × 14</strong><p>樣本數 × 欄位數</p></div></div><div class="panel dataset-report-note"><h3>完整 Boston Housing 分析</h3><p>完整的特徵選擇比較、係數、預測與圖表已收錄於專案的 <code>boston-housing/</code> 資料夾。</p></div>`;
