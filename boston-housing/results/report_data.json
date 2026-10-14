@@ -1,0 +1,53 @@
+{
+  "dataset_shape": [
+    506,
+    14
+  ],
+  "train_shape": [
+    404,
+    13
+  ],
+  "test_shape": [
+    102,
+    13
+  ],
+  "missing_values": {
+    "CRIM": 0,
+    "ZN": 0,
+    "INDUS": 0,
+    "CHAS": 0,
+    "NOX": 0,
+    "RM": 0,
+    "AGE": 0,
+    "DIS": 0,
+    "RAD": 0,
+    "TAX": 0,
+    "PTRATIO": 0,
+    "B": 0,
+    "LSTAT": 0,
+    "MEDV": 0
+  },
+  "dataset_sha256": "a2153ecb4790298c1259b0630c912abe8a4ed69bc45d6db76c9facf9461709b7",
+  "best_method_by_cv_rmse": "RFE",
+  "selected_features": [
+    "CRIM",
+    "ZN",
+    "CHAS",
+    "NOX",
+    "RM",
+    "DIS",
+    "RAD",
+    "TAX",
+    "PTRATIO",
+    "B",
+    "LSTAT"
+  ],
+  "final_test_metrics": {
+    "MAE": 3.842934517859745,
+    "MSE": 33.42419670706748,
+    "RMSE": 5.781366335656951,
+    "R-squared": 0.5895267416134615
+  },
+  "kaggle_source": "https://www.kaggle.com/datasets/abhijithudayakumar/the-boston-housing-dataset",
+  "random_state": 0
+}

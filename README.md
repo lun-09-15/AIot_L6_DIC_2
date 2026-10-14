@@ -1,8 +1,12 @@
-# AIot_L6_DIC_2 — 50 Startups 多元線性迴歸研究
+# Startup Lab — 50 Startups & Boston Housing 回歸研究
+
+## Dataset Workbench
+
+`dist/index.html` 提供資料集下拉選單，可載入內建的 **50 Startups** 或 **Boston Housing**，並顯示資料摘要、可選欄位的散點圖與前 12 筆資料。選擇「從電腦選取 CSV」並按下「載入資料集」會開啟系統檔案選擇視窗；CSV/TSV 只在瀏覽器本機讀取，不會上傳。
+
+Boston Housing 的完整 CRISP-DM 分析程式、資料、結果與圖表在 `boston-housing/`。
 
 以使用者提供的 CRISP-DM + 五種特徵選擇程式為基礎，製作繁體中文互動報告。所有模型分數、曲線、係數、預測與比較表由 Python 實際計算，沒有沿用參考網站的預填數字。
-
-[公開報告網站](https://lun-09-15.github.io/AIot_L6_DIC_2/) · [研究報告](REPORT.md) · [完整專案下載](dist/startup-lab-source.zip)
 
 ## 立即瀏覽
 
