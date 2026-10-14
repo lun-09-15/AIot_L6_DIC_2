@@ -55,7 +55,7 @@
     $('active-dataset-description').textContent = active.description || '使用者從本機載入的資料集。';
     $('active-dataset-kicker').textContent = active.id === 'custom' ? 'LOCAL DATASET' : 'ACTIVE DATASET';
     $('active-dataset-download').textContent = active.id === 'custom' ? '下載目前資料 CSV ↓' : '下載目前 CSV ↓';
-    $('active-dataset-download').href = customUrl || (active.id === 'boston' ? 'BostonHousing.csv' : '50_Startups.csv');
+    $('active-dataset-download').href = active.id === 'custom' ? customUrl : (active.id === 'boston' ? 'BostonHousing.csv' : '50_Startups.csv');
     $('dataset-stats').innerHTML = `<div><span>資料列</span><strong>${active.rows.length.toLocaleString()}</strong></div><div><span>欄位數</span><strong>${columns.length}</strong></div><div><span>缺失值</span><strong>${missingCount(active).toLocaleString()}</strong></div>`;
     $('dataset-preview-note').textContent = `顯示前 ${Math.min(12, active.rows.length)} / ${active.rows.length.toLocaleString()} 筆`;
     $('dataset-table').innerHTML = table(columns, active.rows.slice(0, 12).map(row => columns.map(column => row[column])));
