@@ -68,7 +68,7 @@
   }
   function renderDatasetReport() {
     const report = $('dataset-report');
-    const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict'].map($);
+    const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict'].map($).filter(Boolean);
     const isStartup = active.id === 'startups';
     report.hidden = isStartup;
     startupSections.forEach(section => { section.hidden = !isStartup; });
