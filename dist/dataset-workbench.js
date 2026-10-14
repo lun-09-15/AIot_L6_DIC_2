@@ -166,19 +166,50 @@
     })));
     return {headers: unique, rows};
   }
+  function loadText(text, filename, source) {
+    try {
+      const content = String(text).replace(/^\uFEFF/, '');
+      if (/^\s*<(?:!doctype\s+html|html|head|body)\b/i.test(content)) throw new Error('網址回傳的是網頁，不是 CSV。請貼上 CSV 原始檔的直接連結。');
+      const parsed = parseDelimited(content);
+      if (!parsed.headers.length || !parsed.rows.length) throw new Error('找不到可用的欄位或資料列。');
+      if (customUrl) URL.revokeObjectURL(customUrl);
+      const blob = new Blob([content], {type: 'text/csv;charset=utf-8'});
+      customUrl = URL.createObjectURL(blob);
+      const target = [...parsed.headers].reverse().find(column => parsed.rows.some(row => isNumber(row[column]))) || parsed.headers.at(-1);
+      active = {id: 'custom', name: filename, source, description: `已載入 ${filename}。可用下方 X、Y 選單檢視數值欄位關係。`, target, rows: parsed.rows};
+      render();
+      return true;
+    } catch (error) {
+      $('dataset-status').textContent = `無法讀取資料：${error.message}`;
+      return false;
+    }
+  }
   function loadFile(file) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = event => {
-      try {
-        const parsed = parseDelimited(String(event.target.result));
-        if (customUrl) URL.revokeObjectURL(customUrl);
-        customUrl = URL.createObjectURL(file);
-        active = {id: 'custom', name: file.name, source: '本機檔案（僅於瀏覽器讀取）', description: `已從你的電腦載入 ${file.name}。可用下方 X、Y 選單檢視數值欄位關係。`, target: parsed.headers.at(-1), rows: parsed.rows};
-        render();
-      } catch (error) { $('dataset-status').textContent = `無法讀取檔案：${error.message}`; }
-    };
+    reader.onload = event => loadText(String(event.target.result), file.name, '本機檔案（僅於瀏覽器讀取）');
+    reader.onerror = () => { $('dataset-status').textContent = '無法讀取檔案，請確認檔案格式後重試。'; };
     reader.readAsText(file, 'utf-8');
+  }
+  async function loadUrl() {
+    const input = $('dataset-url'), button = $('load-dataset-url'), raw = input.value.trim();
+    if (!raw) { $('dataset-status').textContent = '請先貼上 CSV 網址。'; input.focus(); return; }
+    let url;
+    try { url = new URL(raw); if (!['https:', 'http:'].includes(url.protocol)) throw new Error(); }
+    catch { $('dataset-status').textContent = '請輸入有效的 http 或 https 網址。'; input.focus(); return; }
+    button.disabled = true;
+    $('dataset-status').textContent = '正在讀取網址中的資料…';
+    try {
+      const response = await fetch(url.href, {mode: 'cors'});
+      if (!response.ok) throw new Error(`伺服器回應 ${response.status}。`);
+      const text = await response.text();
+      const filename = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() || 'dataset.csv').replace(/[?#].*$/, '');
+      const loaded = loadText(text, filename, `網址資料 · ${url.hostname}`);
+      if (loaded) $('dataset-select').value = 'custom';
+    } catch (error) {
+      const detail = error instanceof TypeError ? '瀏覽器無法直接讀取此網站（可能限制跨網站存取）。請下載 CSV 後使用「從電腦選取 CSV」。' : error.message;
+      $('dataset-status').textContent = `網址載入失敗：${detail}`;
+    } finally { button.disabled = false; }
   }
   $('load-dataset').addEventListener('click', () => {
     const chosen = $('dataset-select').value;
@@ -188,6 +219,8 @@
     render();
   });
   $('dataset-file').addEventListener('change', event => loadFile(event.target.files[0]));
+  $('load-dataset-url').addEventListener('click', loadUrl);
+  $('dataset-url').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); loadUrl(); } });
   $('dataset-x').addEventListener('change', () => scatter(active.rows, $('dataset-x').value, $('dataset-y').value));
   $('dataset-y').addEventListener('change', () => scatter(active.rows, $('dataset-x').value, $('dataset-y').value));
   render();
