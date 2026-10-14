@@ -47,6 +47,10 @@
   }
   function render() {
     if (!active || !active.rows.length) return;
+    const sourceSelect=$('dataset-select');
+    sourceSelect.innerHTML=`<option value="startups">50 Startups · 新創獲利</option><option value="boston">Boston Housing · 房價中位數</option>${active.id==='custom'?`<option value="custom">目前資料：${escapeHtml(active.name)}</option>`:''}<optgroup label="載入自己的資料"><option value="local">從本機選擇 CSV…</option><option value="url">從 CSV 網址載入…</option></optgroup>`;
+    sourceSelect.value=active.id;
+    $('dataset-source-panel').hidden=true;$('local-source').hidden=true;$('url-source').hidden=true;
     const columns = Object.keys(active.rows[0]);
     const numeric = numericColumns(active);
     const target = numeric.includes(active.target) ? active.target : numeric[numeric.length - 1];
@@ -198,38 +202,47 @@
     counts.forEach((n,i)=>{const bh=n/bmax*(H-T-B);h+=`<rect x="${L+i*bw+2}" y="${H-B-bh}" width="${Math.max(1,bw-4)}" height="${bh}" rx="2" fill="#8ca982"><title>${n} 筆殘差</title></rect><text x="${L+i*bw+bw/2}" y="${H-B+17}" text-anchor="middle" fill="#647763" font-size="9">${(lo+(i+.5)*span/bins).toFixed(1)}</text>`;});
     $('custom-residual-chart').innerHTML=`<svg class="custom-svg" viewBox="0 ${0} ${W} ${H}" role="img" aria-label="測試集預測殘差分布">${h}<text x="${(L+W-R)/2}" y="${H-7}" text-anchor="middle" fill="#465b49" font-size="11">殘差（實際 − 預測）</text></svg>`;
   }
+  function renderCorrelation(rows,target){
+    const host=$('report-correlation');if(!host)return;
+    const columns=numericColumns({rows}).slice(0,12);
+    if(!columns.includes(target)&&columns.length>=12)columns[columns.length-1]=target;
+    $('report-correlation-caption').textContent=`顯示 ${columns.length} 個數值欄位`;
+    const corr=(a,b)=>{const pairs=rows.filter(r=>isNumber(r[a])&&isNumber(r[b]));if(pairs.length<2)return 0;const ma=pairs.reduce((s,r)=>s+r[a],0)/pairs.length,mb=pairs.reduce((s,r)=>s+r[b],0)/pairs.length,va=Math.sqrt(pairs.reduce((s,r)=>s+(r[a]-ma)**2,0)),vb=Math.sqrt(pairs.reduce((s,r)=>s+(r[b]-mb)**2,0));return va&&vb?pairs.reduce((s,r)=>s+(r[a]-ma)*(r[b]-mb),0)/(va*vb):0;};
+    const color=v=>v>=0?`rgba(173,50,54,${.12+Math.abs(v)*.78})`:`rgba(60,105,157,${.12+Math.abs(v)*.78})`;
+    host.innerHTML=`<div class="correlation-scroll"><table class="correlation-table"><thead><tr><th></th>${columns.map(c=>`<th title="${escapeHtml(c)}">${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${columns.map(a=>`<tr><th title="${escapeHtml(a)}">${escapeHtml(a)}</th>${columns.map(b=>{const v=corr(a,b);return`<td style="background:${color(v)}" title="${escapeHtml(a)} × ${escapeHtml(b)}：${v.toFixed(2)}">${v.toFixed(1)}</td>`}).join('')}</tr>`).join('')}</tbody></table></div><div class="correlation-legend"><span>−1 負相關</span><i></i><span>0</span><i class="warm"></i><span>+1 正相關</span></div>`;
+  }
   function runCustomEvaluation() {
     const target=$('custom-target')?.value;
-    if(!target){$('custom-evaluation').hidden=true;$('custom-eval-error').textContent='資料中找不到數值目標欄位，無法進行多元線性迴歸。';return;}
+    if(!target){$('custom-eval-metrics').innerHTML='';$('custom-actual-chart').innerHTML='';$('custom-residual-chart').innerHTML='';$('custom-eval-meta').textContent='資料中找不到數值目標欄位。';$('custom-eval-error').textContent='至少需要一個數值欄位作為預測目標。';return;}
     const host=$('custom-evaluation');host.hidden=false;
     try{
       const r=customEvaluation(target);
       $('custom-eval-error').textContent='';
       const metric=value=>Number.isFinite(value)?value.toFixed(4):'無法計算';
+      $('report-target-name').textContent=target;$('report-row-count').textContent=r.rows.toLocaleString();$('report-feature-count').textContent=r.features.toLocaleString();
       $('custom-eval-metrics').innerHTML=`<div><span>CV RMSE <small>越低越好</small></span><strong>${metric(r.cvRmse)}</strong><p>${r.folds} 折交叉驗證</p></div><div><span>CV R² <small>越高越好</small></span><strong>${metric(r.cvR2)}</strong><p>訓練資料內交叉驗證</p></div><div><span>Test RMSE</span><strong>${metric(r.rmse)}</strong><p>保留測試資料</p></div><div><span>Test R²</span><strong>${metric(r.r2)}</strong><p>保留測試資料</p></div>`;
       $('custom-eval-meta').textContent=`目標：${target} · ${r.rows.toLocaleString()} 筆有效資料 · ${r.features} 個特徵 · 測試集 ${r.testRows.length} 筆。交叉驗證與測試集採固定亂數切分。`;
-    $('custom-model-terms').innerHTML=`<p>本次模型使用：${r.terms.map(escapeHtml).join('、')||'無'}。類別欄位以參考類別方式轉成指示變數；數值缺失以訓練資料中位數補值。</p>`;
+      $('custom-model-terms').innerHTML=`<h3>模型使用的特徵</h3><p>${r.terms.map(escapeHtml).join('、')||'無'}。類別欄位以參考類別方式轉成指示變數；數值缺失以訓練資料中位數補值。</p>`;
       renderCustomCharts(r.testRows);
-    }catch(error){host.hidden=true;$('custom-eval-error').textContent=`無法執行評估：${error.message}`;}
+      renderCorrelation(active.rows.filter(row=>isNumber(row[target])),target);
+    }catch(error){$('custom-eval-metrics').innerHTML='';$('custom-actual-chart').innerHTML='';$('custom-residual-chart').innerHTML='';$('custom-eval-meta').textContent='資料尚不足以計算評估指標。';$('custom-eval-error').textContent=`無法執行評估：${error.message}`;}
   }
 
   function renderDatasetReport() {
     const report = $('dataset-report');
     const startupSections = ['startup-stats', 'research', 'explore', 'evaluation', 'predict'].map($).filter(Boolean);
     const isStartup = active.id === 'startups';
-    report.hidden = isStartup;
-    startupSections.forEach(section => { section.hidden = !isStartup; });
-    $('site-footer').hidden = !isStartup;
-    if (isStartup) return;
-    if (active.id === 'boston') {
-      report.innerHTML = `<div class="section-head"><div><div class="eyebrow">01–04 / BOSTON HOUSING REPORT</div><h2>Boston Housing 的 CRISP-DM 研究結果。</h2></div><p>此區會隨資料集切換；不沿用 50 Startups 的研究敘述或模型指標。</p></div><div class="process"><article><b>01</b><h3>商業理解</h3><p>以 MEDV（自有住宅價格中位數，千美元）為目標，探索住宅、區位與社經條件的關聯。</p></article><article><b>02</b><h3>資料理解</h3><p>506 筆、14 欄數值資料；包含 CRIM、RM、LSTAT 與 MEDV，無缺失值。</p></article><article><b>03</b><h3>資料準備</h3><p>固定 80/20 切分，訓練資料內標準化；所有欄位均為數值特徵。</p></article><article><b>04</b><h3>模型建立</h3><p>比較 Forward、Backward、RFE、SelectKBest 與 Lasso 五種特徵選擇方法。</p></article><article><b>05</b><h3>模型評估</h3><p>以 5-fold CV 選模，再使用保留測試集衡量 RMSE 與 R²。</p></article><article><b>06</b><h3>部署應用</h3><p>保留可重跑的 Python 程式、模型、比較表與圖表，供後續檢視與重現。</p></article></div><div class="metric-grid dataset-metrics"><div><span>最佳方法</span><strong>RFE</strong><p>依交叉驗證結果選定</p></div><div><span>Test RMSE</span><strong>5.7814</strong><p>MEDV 的原始單位</p></div><div><span>Test R²</span><strong>0.5895</strong><p>保留測試資料</p></div><div><span>資料規模</span><strong>506 × 14</strong><p>樣本數 × 欄位數</p></div></div><div class="chart-pair boston-figures"><article class="panel"><div class="chart-title"><h3>特徵相關性</h3><span>14 個數值欄位</span></div><div id="boston-heatmap" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>交叉驗證 RMSE</h3><span>依特徵數比較四種方法</span></div><div id="boston-cv-rmse" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>交叉驗證 R²</h3><span>依特徵數比較四種方法</span></div><div id="boston-cv-r2" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>最終模型比較</h3><span>Test RMSE（千美元）</span></div><div id="boston-models" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>實際值與預測值</h3><span>RFE 保留測試集</span></div><div id="boston-predictions" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>RFE 特徵係數</h3><span>11 個保留特徵</span></div><div id="boston-coefficients" class="boston-chart-host"></div></article></div><div class="panel dataset-report-note"><h3>完整 Boston Housing 分析</h3><p>完整的特徵選擇比較、係數、預測與圖表已收錄於專案的 <code>boston-housing/</code> 資料夾。</p></div>`;
-      renderBostonCharts();
-    } else {
-      const targets=numericColumns(active);
-      report.innerHTML = `<div class="section-head"><div><div class="eyebrow">CUSTOM DATASET / CRISP-DM</div><h2>${escapeHtml(active.name)} 的迴歸評估。</h2></div><p>以下結果由目前載入的資料即時計算，不會套用內建資料集的分數。</p></div><div class="process"><article><b>01</b><h3>商業理解</h3><p>選擇一個數值欄位作為預測目標，其他可用欄位作為解釋變數。</p></article><article><b>02</b><h3>資料理解</h3><p>檢視有效樣本、欄位類型、缺失值與數值關係。</p></article><article><b>03</b><h3>資料準備</h3><p>使用 80/20 保留測試集；類別欄位自動轉為指示變數，數值缺失以訓練資料中位數補值。</p></article><article><b>04</b><h3>模型建立</h3><p>以普通最小平方法建立多元線性迴歸模型。</p></article><article><b>05</b><h3>模型評估</h3><p>比較訓練資料內 5 折 CV 與保留測試集的 RMSE、R²，並檢視預測與殘差。</p></article><article><b>06</b><h3>部署應用</h3><p>自訂資料僅在這個瀏覽器分頁中運算，不會上傳或保存到網站。</p></article></div><div class="dataset-controls panel custom-target-controls"><label for="custom-target"><span class="label">預測目標欄位</span><select id="custom-target">${targets.map(c=>`<option value="${escapeHtml(c)}"${c===active.target?' selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label><button id="run-custom-evaluation" class="primary" type="button">執行迴歸評估 ↗</button><p id="custom-eval-error" role="status" aria-live="polite"></p></div><section id="custom-evaluation" class="custom-evaluation" hidden><div class="section-head"><div><div class="eyebrow">MODEL EVALUATION</div><h2>模型表現與預測診斷</h2></div><p id="custom-eval-meta"></p></div><div class="metric-grid dataset-metrics" id="custom-eval-metrics"></div><div class="chart-pair custom-chart-pair"><article class="panel"><div class="chart-title"><h3>實際值與預測值</h3><span>保留測試集</span></div><div id="custom-actual-chart" class="custom-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>測試集殘差分布</h3><span>實際 − 預測</span></div><div id="custom-residual-chart" class="custom-chart-host"></div></article></div><div class="panel dataset-report-note" id="custom-model-terms"></div><p class="note">這是線性迴歸基準評估，未執行 Forward、Backward、RFE、SelectKBest 或 Lasso 特徵選擇；少量樣本或高共線性可能使指標與係數不穩定。</p></section>`;
-      $('run-custom-evaluation').addEventListener('click',runCustomEvaluation);
-      runCustomEvaluation();
-    }
+    report.hidden = false;
+    startupSections.forEach(section => { section.hidden = true; });
+    if(isStartup)['explore','evaluation','predict'].forEach(id=>{const section=$(id);if(section)section.hidden=false;});
+    $('site-footer').hidden = false;
+    const targets=numericColumns(active), columns=Object.keys(active.rows[0]||{}), target=targets.includes(active.target)?active.target:(targets.at(-1)||'');
+    const targetData=active.rows.filter(r=>isNumber(r[target]));
+    const categorical=columns.filter(c=>!targets.includes(c)).length;
+    report.innerHTML = `<div class="section-head"><div><div class="eyebrow">01–05 / DATASET RESEARCH & EVALUATION</div><h2>${escapeHtml(active.name)} 的研究與評估。</h2></div><p>所有資料集共用同一套 CRISP-DM 報告骨架；資料摘要、目標欄位、模型結果與圖表會隨目前載入的資料更新。</p></div><div class="process"><article><b>01</b><h3>商業理解</h3><p>選擇數值欄位作為預測目標，檢視其他特徵與目標之間的關係。</p></article><article><b>02</b><h3>資料理解</h3><p>${active.rows.length.toLocaleString()} 筆、${columns.length} 欄；${targets.length} 個數值欄位與 ${categorical} 個類別欄位，檢視缺失值及數值分布。</p></article><article><b>03</b><h3>資料準備</h3><p>固定亂數進行 80/20 切分；數值缺失以訓練集中位數補值，低基數類別欄位轉為指示變數。</p></article><article><b>04</b><h3>模型建立</h3><p>以多元線性迴歸作為共同基準；內建資料另提供已完成的五種特徵選擇分析。</p></article><article><b>05</b><h3>模型評估</h3><p>比較訓練資料內 5 折交叉驗證及保留測試集的 RMSE、R²，並檢查實際值、預測值與殘差。</p></article><article><b>06</b><h3>部署應用</h3><p>自訂資料只在目前瀏覽器分頁中運算；選擇其他資料來源即可重新建立整份報告。</p></article></div><div class="metric-grid dataset-metrics"><div><span>預測目標</span><strong id="report-target-name">${escapeHtml(target||'無數值欄位')}</strong><p>可由下方選單切換</p></div><div><span>有效樣本</span><strong id="report-row-count">${targetData.length.toLocaleString()}</strong><p>目標欄位為數值的資料列</p></div><div><span>特徵數</span><strong id="report-feature-count">—</strong><p>模型實際使用欄位</p></div><div><span>缺失值</span><strong>${missingCount(active).toLocaleString()}</strong><p>整份資料欄位合計</p></div></div><div class="dataset-controls panel custom-target-controls"><label for="custom-target"><span class="label">預測目標欄位</span><select id="custom-target">${targets.map(c=>`<option value="${escapeHtml(c)}"${c===target?' selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label><p>報告及模型指標均會依選定目標即時重算。</p><p id="custom-eval-error" role="status" aria-live="polite"></p></div><section id="custom-evaluation" class="custom-evaluation"><div class="section-head"><div><div class="eyebrow">MODEL EVALUATION</div><h2>模型表現與預測診斷</h2></div><p id="custom-eval-meta"></p></div><div class="metric-grid dataset-metrics" id="custom-eval-metrics"></div><div class="chart-pair custom-chart-pair"><article class="panel"><div class="chart-title"><h3>實際值與預測值</h3><span>保留測試集</span></div><div id="custom-actual-chart" class="custom-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>測試集殘差分布</h3><span>實際 − 預測</span></div><div id="custom-residual-chart" class="custom-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>數值欄位相關性</h3><span id="report-correlation-caption"></span></div><div id="report-correlation" class="correlation-grid-host"></div></article></div><div class="panel dataset-report-note" id="custom-model-terms"></div><p class="note">自訂資料使用共同線性迴歸基準，不會將 50 Startups 或 Boston Housing 的既有分數套用到新資料。內建資料的原始五種特徵選擇報告仍保留在下方專屬分析區。</p></section>${active.id==='boston'?'<details class="data-details"><summary>查看 Boston Housing 五種方法的完整比較與圖表 <span>＋</span></summary><div class="chart-pair boston-figures"><article class="panel"><div class="chart-title"><h3>特徵相關性</h3><span>14 個數值欄位</span></div><div id="boston-heatmap" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>交叉驗證 RMSE</h3><span>依特徵數比較方法</span></div><div id="boston-cv-rmse" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>交叉驗證 R²</h3><span>依特徵數比較方法</span></div><div id="boston-cv-r2" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>最終模型比較</h3><span>Test RMSE（千美元）</span></div><div id="boston-models" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>原分析預測結果</h3><span>RFE 保留測試集</span></div><div id="boston-predictions" class="boston-chart-host"></div></article><article class="panel"><div class="chart-title"><h3>RFE 特徵係數</h3><span>原始分析</span></div><div id="boston-coefficients" class="boston-chart-host"></div></article></div></details>':''}`;
+    $('custom-target').addEventListener('change', event => { active.target=event.target.value; runCustomEvaluation(); });
+    runCustomEvaluation();
+    if(active.id==='boston')renderBostonCharts();
   }
 
   function parseDelimited(text) {
@@ -301,14 +314,15 @@
       $('dataset-status').textContent = `網址載入失敗：${detail}`;
     } finally { button.disabled = false; }
   }
-  $('load-dataset').addEventListener('click', () => {
-    const chosen = $('dataset-select').value;
-    if (chosen === 'custom') { $('dataset-file').click(); return; }
+  $('dataset-select').addEventListener('change', event => {
+    const chosen=event.target.value;
+    if(chosen==='local'||chosen==='url'){$('dataset-source-panel').hidden=false;$('local-source').hidden=chosen!=='local';$('url-source').hidden=chosen!=='url';return;}
+    if(chosen==='custom')return;
     if (customUrl) { URL.revokeObjectURL(customUrl); customUrl = null; }
-    active = {...datasets[chosen], id: chosen};
-    render();
+    active = {...datasets[chosen], id: chosen};render();
   });
-  $('dataset-file').addEventListener('change', event => loadFile(event.target.files[0]));
+  $('choose-dataset-file').addEventListener('click',()=> $('dataset-file').click());
+  $('dataset-file').addEventListener('change', event => {if(event.target.files[0])loadFile(event.target.files[0]);else $('dataset-select').value=active.id;} );
   $('load-dataset-url').addEventListener('click', loadUrl);
   $('dataset-url').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); loadUrl(); } });
   $('dataset-x').addEventListener('change', () => scatter(active.rows, $('dataset-x').value, $('dataset-y').value));
