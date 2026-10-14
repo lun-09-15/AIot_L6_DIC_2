@@ -3,7 +3,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const datasets = window.DATASETS || {};
-  let active = datasets.startups;
+  let active = {...datasets.startups, id: 'startups'};
   let customUrl = null;
   const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const isNumber = value => typeof value === 'number' && Number.isFinite(value);
@@ -106,7 +106,9 @@
   $('load-dataset').addEventListener('click', () => {
     const chosen = $('dataset-select').value;
     if (chosen === 'custom') { $('dataset-file').click(); return; }
-    active = datasets[chosen]; render();
+    if (customUrl) { URL.revokeObjectURL(customUrl); customUrl = null; }
+    active = {...datasets[chosen], id: chosen};
+    render();
   });
   $('dataset-file').addEventListener('change', event => loadFile(event.target.files[0]));
   $('dataset-x').addEventListener('change', () => scatter(active.rows, $('dataset-x').value, $('dataset-y').value));
